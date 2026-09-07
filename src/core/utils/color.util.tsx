@@ -1,0 +1,30 @@
+export const Colors = {
+  // rgba
+  rgbaB4F6D8: 'rgba(180, 246, 216, 0.8)',
+  rgbaD2232A: 'rgba(255, 235, 237, 0.8)',
+  rgba000000_50: 'rgba(0, 0, 0, 0.5)',
+
+  // hex
+  transparent: 'transparent',
+  hFFFFFF: '#FFFFFF',
+  h000000: '#000000',
+  h656565: '#656565',
+  hE3E3E3: '#E3E3E3',
+  hF5F5F5: '#F5F5F5',
+  h151515: '#151515',
+  h1B1816: '#1B1816',
+  h29835A: '#29835A',
+  hD8394C: '#D8394C',
+  h2F3237: '#2F3237',
+  hE9EBEC: '#E9EBEC',
+  h848D9A: '#848D9A',
+  h3C3C3B: '#3C3C3B',
+  h69C779: '#69C779',
+  hFE6301: '#FE6301',
+  hFFC107: '#FFC107',
+  h04B7EF: '#04B7EF',
+  h93B6A1: '#93B6A1',
+  h242526: '#242526',
+  h7C7C7C: '#7C7C7C',
+  h4B4B4B: '#4B4B4B',
+};
