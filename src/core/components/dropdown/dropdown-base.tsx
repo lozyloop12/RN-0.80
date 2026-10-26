@@ -5,7 +5,7 @@ import {
   isIOS,
   verticalScale,
 } from '@src/core/utils';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -19,33 +19,68 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-interface IProps {
-  container?: ViewStyle;
+export interface DropDownBaseProps<T = any> {
+  container?: StyleProp<ViewStyle>;
   label?: string;
-  onSelectItem: (data: any) => void;
+  placeholder?: string;
+  onSelectItem: (data: T) => void;
   title?: string;
-  data: Array<any>;
+  data: Array<T>;
   dropdownStyle?: StyleProp<ViewStyle>;
-  styleBtn?: ViewStyle;
+  styleBtn?: StyleProp<ViewStyle>;
+  labelKey?: string;
+  valueKey?: string;
+  renderCustomItem?: (item: T, isSelected: boolean) => React.ReactNode;
 }
 
-const DropDownBase = (props: IProps) => {
+const DropDownBase = <T = any>(props: DropDownBaseProps<T>) => {
   const {
     container = {},
     label = '',
+    placeholder = 'Select an option',
     onSelectItem,
     title = '',
     data = [],
     dropdownStyle = {},
     styleBtn = {},
+    labelKey,
+    valueKey,
+    renderCustomItem,
   } = props;
   const [isShowDropDown, setShowDropDown] = useState(false);
   const dropdownButtonRef = useRef<any>(null);
   const [dropdownTop, setDropdownTop] = useState(0);
-  const [value, setValue] = useState(data || []);
+  const [dropdownLeft, setDropdownLeft] = useState(0);
+  const [dropdownWidth, setDropdownWidth] = useState(0);
+  const [value, setValue] = useState<T[]>(data || []);
   const [labelDropdown, setLabel] = useState(label || '');
+  const [selectedItem, setSelectedItem] = useState<T | null>(null);
   const insets = useSafeAreaInsets();
   const heightSatusbar = insets.top;
+
+  // Sync value when dynamic data updates (e.g. from API)
+  useEffect(() => {
+    setValue(data || []);
+  }, [data]);
+
+  // Sync label when prop changes
+  useEffect(() => {
+    if (label !== undefined) {
+      setLabel(label);
+    }
+  }, [label]);
+
+  const getItemLabel = (item: any): string => {
+    if (!item) return '';
+    if (labelKey && item[labelKey] !== undefined) {
+      return String(item[labelKey]);
+    }
+    if (item.name !== undefined) return String(item.name);
+    if (item.title !== undefined) return String(item.title);
+    if (item.label !== undefined) return String(item.label);
+    if (typeof item === 'string') return item;
+    return String(item);
+  };
 
   const onCloseDropDown = () => {
     setShowDropDown(!isShowDropDown);
@@ -61,42 +96,71 @@ const DropDownBase = (props: IProps) => {
         (
           _fx: number,
           _fy: number,
-          _w: number,
+          w: number,
           h: number,
-          _px: number,
+          px: number,
           py: number,
         ) => {
           isIOS
             ? setDropdownTop(py + h)
             : setDropdownTop(py + h - heightSatusbar);
+          setDropdownLeft(px);
+          setDropdownWidth(w);
         },
       );
       setShowDropDown(true);
     }
   };
 
-  const onSelect = (item: any, index: number) => {
+  const onSelect = (item: T, index: number) => {
     const newValues = value.map((v: any, i: number) => {
       if (i === index) return { ...v, selected: true };
       return { ...v, selected: false };
     });
     setValue(newValues);
+    setSelectedItem(item);
     setShowDropDown(!isShowDropDown);
     onSelectItem(item);
-    setLabel(item.name);
+    setLabel(getItemLabel(item));
   };
 
-  const renderItem = ({ item, index }: any) => {
-    const { name } = item;
-    const isLastItem = data.length - 1 === index;
+  const renderItem = ({ item, index }: { item: T; index: number }) => {
+    const itemLabel = getItemLabel(item);
+    const isSelected =
+      valueKey && selectedItem
+        ? (selectedItem as any)[valueKey] === (item as any)[valueKey]
+        : (item as any).selected || itemLabel === labelDropdown;
+    const isLastItem = (value?.length || 0) - 1 === index;
     const borderBottomWidth = isLastItem ? 0 : verticalScale(1);
+
+    if (renderCustomItem) {
+      return (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={[styles.viewItem, { borderBottomWidth }]}
+          onPress={() => onSelect(item, index)}
+        >
+          {renderCustomItem(item, isSelected)}
+        </TouchableOpacity>
+      );
+    }
+
     return (
       <TouchableOpacity
         activeOpacity={0.7}
-        style={[styles.viewItem, { borderBottomWidth }]}
+        style={[
+          styles.viewItem,
+          { borderBottomWidth },
+          isSelected && styles.viewItemSelected,
+        ]}
         onPress={() => onSelect(item, index)}
       >
-        <Text>{name}</Text>
+        <Text
+          numberOfLines={1}
+          style={[styles.itemText, isSelected && styles.itemTextSelected]}
+        >
+          {itemLabel}
+        </Text>
       </TouchableOpacity>
     );
   };
@@ -122,14 +186,29 @@ const DropDownBase = (props: IProps) => {
               style={[
                 styles.dropdown,
                 dropdownStyle,
-                { top: dropdownTop },
+                {
+                  top: dropdownTop,
+                  ...(dropdownLeft ? { left: dropdownLeft } : {}),
+                  ...(dropdownWidth ? { width: dropdownWidth } : {}),
+                },
               ]}
             >
               <FlatList
                 data={value}
                 renderItem={renderItem}
-                keyExtractor={(_item, index) => index.toString()}
+                keyExtractor={(item: any, index: number) =>
+                  valueKey && item[valueKey] !== undefined
+                    ? String(item[valueKey])
+                    : item.id !== undefined
+                      ? String(item.id)
+                      : index.toString()
+                }
                 showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>No data available</Text>
+                  </View>
+                }
               />
             </View>
           </View>
@@ -146,7 +225,15 @@ const DropDownBase = (props: IProps) => {
         onPress={openDropdown}
         style={[styles.btn, styleBtn]}
       >
-        <Text style={[styles.label]}>{labelDropdown}</Text>
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.label,
+            !labelDropdown && styles.placeholder,
+          ]}
+        >
+          {labelDropdown || placeholder}
+        </Text>
       </TouchableOpacity>
       {renderViewModal()}
     </View>
@@ -174,6 +261,10 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fontSize(16),
     color: Colors.h151515,
+    flex: 1,
+  },
+  placeholder: {
+    color: Colors.h848D9A,
   },
   title: {
     fontSize: fontSize(15),
@@ -199,14 +290,36 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.107,
     shadowRadius: 4,
     elevation: 2,
-    minHeight: verticalScale(100),
-    maxHeight: verticalScale(200),
+    minHeight: verticalScale(60),
+    maxHeight: verticalScale(220),
   },
   viewItem: {
     flexDirection: 'row',
     paddingHorizontal: horizontalScale(15),
-    borderColor: Colors.hFFFFFF,
-    marginTop: verticalScale(10),
+    paddingVertical: verticalScale(12),
+    borderColor: Colors.hE3E3E3,
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  viewItemSelected: {
+    backgroundColor: Colors.hF5F5F5,
+  },
+  itemText: {
+    fontSize: fontSize(14),
+    color: Colors.h151515,
+    flex: 1,
+  },
+  itemTextSelected: {
+    fontWeight: '600',
+    color: Colors.h29835A,
+  },
+  emptyContainer: {
+    paddingVertical: verticalScale(16),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: fontSize(14),
+    color: Colors.h848D9A,
   },
 });
